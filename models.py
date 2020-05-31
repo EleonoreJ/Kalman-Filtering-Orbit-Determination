@@ -73,6 +73,7 @@ def j2Jacobian(X):
     Computes the Jacobian for Keplerian + J2 dynamics.
     @param: X The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
     """
+<<<<<<< HEAD
 
     mu = Earth.gravitational_parameter
     Re = Earth.equatorial_radius
@@ -103,6 +104,10 @@ def j2Jacobian(X):
     J[5,2] += A*((-45*rk*r**-7 + 105*rk**3*r**-9)*rk + (9*r**-5 - 45*rk**2*r**-7))
 	
     return J
+=======
+    # TBI
+    pass
+>>>>>>> b282ed79eb0eb9a951d739c87c0181b019fbd928
 
 
 def dragDynamics(X, Cd=2.3, A=20, m=1500):
@@ -139,11 +144,16 @@ def dragDynamics(X, Cd=2.3, A=20, m=1500):
     return f
 
 
+<<<<<<< HEAD
 def dragJacobian(X, Cd=2.3, A=20, m=1500):
+=======
+def dragJacobian(X):
+>>>>>>> b282ed79eb0eb9a951d739c87c0181b019fbd928
     """
     Computes the Jacobian for Keplerian + J2 + atmospheric drag dynamics.
     @param: X The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
     """
+<<<<<<< HEAD
     
     h0 = 0             # Sea level [m]
     rho0 = 1.2250      # Air density at sea level [kg/m^3]
@@ -196,3 +206,7 @@ def dragJacobian(X, Cd=2.3, A=20, m=1500):
     J[5,3] += -1/2*B*rho *(v + vk**2/v)
     
     return J
+=======
+    # TBI
+    pass
+>>>>>>> b282ed79eb0eb9a951d739c87c0181b019fbd928

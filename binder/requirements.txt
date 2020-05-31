@@ -8,5 +8,6 @@ plotly~=4.4.1
 plotly-geo~=1.0.0
 
 pandas~=0.25.3
+scipy~=1.4.1
 
 open-space-toolkit-astrodynamics>=0.3.0
