@@ -45,7 +45,7 @@ def EKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, JDynamics, propagator, dt)
         A[t,:,:] = JDynamics(mu[t,:])
 
         #--- Update ---#
-        K = np.dot(Sigma[t,:,:], np.dot(C[t,:,].T, np.linalg.inv(C[t,:,:]*Sigma[t,:,:]*C[t,:,:].T + R)))
+        K = np.dot(Sigma[t,:,:], np.dot(C[t,:,].T, np.linalg.inv(np.dot(C[t,:,:],Sigma[t,:,:]).dot(C[t,:,:].T) + R)))
         mu[t,:] += np.dot(K, Y[t,:] - fMeas(C[t,:,:], mu[t,:]))
         Sigma[t,:,:] -= np.dot(K, np.dot(C[t,:,:], Sigma[t,:,:]))
         
