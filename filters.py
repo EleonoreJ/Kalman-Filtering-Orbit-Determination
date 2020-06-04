@@ -45,7 +45,7 @@ def EKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, JDynamics, propagator, dt)
         A[t,:,:] = JDynamics(mu[t,:])
 
         #--- Update ---#
-        K = np.dot(Sigma[t,:,:], np.dot(C[t,:,].T, np.linalg.inv(C[t,:,:]*Sigma[t,:,:]*C[t,:,:].T + R)))
+        K = np.dot(Sigma[t,:,:], np.dot(C[t,:,].T, np.linalg.inv(np.dot(C[t,:,:],Sigma[t,:,:]).dot(C[t,:,:].T) + R)))
         mu[t,:] += np.dot(K, Y[t,:] - fMeas(C[t,:,:], mu[t,:]))
         Sigma[t,:,:] -= np.dot(K, np.dot(C[t,:,:], Sigma[t,:,:]))
         
@@ -183,16 +183,16 @@ def PF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
     
     for t in range(1,T):
         #--- Predict ---#
-        for i in range(0,len(xtab)):
-            xtab[i] = propagator(xtab[i], dt, fDynamics) + w(n,Q)
+        for j in range(0,len(xtab)):
+            xtab[j] = propagator(xtab[j], dt, fDynamics) + w(n,Q)
         # Measurements of the particles states
         ytab = np.zeros((N, m))
-        for i in range(0,len(xtab)):
-            ytab[i] = fMeas(C[t,:,:], xtab[i])
+        for j in range(0,len(xtab)):
+            ytab[j] = fMeas(C[t,:,:], xtab[j])
         # Update weights
         wtab=np.zeros(N)
-        for i in range(N):
-            wtab[i] = lognorm_pdf((Y[t,:]-ytab[i]), np.zeros(m), R)
+        for j in range(N):
+            wtab[j] = lognorm_pdf((Y[t,:]-ytab[j]), np.zeros(m), R)
         wtab = exp_normalize(wtab)
         # Resample
         xtab, wtab = low_variance_resampling(xtab,wtab,N)
@@ -200,4 +200,95 @@ def PF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
         #--- Update ---#
         mu[t,:] = np.dot(xtab.T,wtab)
        
+    return mu
+
+
+def low_variance_resampling_UPF(xtab,Sigmatab,wtab,N): 
+    """
+    Low variance resampling implementation for the UPF.
+    """
+    s=np.random.rand()/N
+    j=0
+    xlist=[]
+    Sigmalist=[]
+    c=wtab[0]
+    wlist=[]
+    for i in range(N):
+        u=s+i/N
+        while u>c:
+            j+=1
+            c+=wtab[j]
+        xlist.append(xtab[j])
+        Sigmalist.append(Sigmatab[j])
+        wlist.append(wtab[j])
+    return np.array(xlist), np.array(Sigmalist), np.array(wlist)/sum(wlist)
+
+def UPF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
+    """
+    Unscented Particle Filter.
+    """
+    T, n = X.shape
+    m = C.shape[1]
+    
+    mu = np.zeros((T, n))
+    Sigma = np.zeros((T, n, n))
+    mu[0,:] = mu0
+    Sigma[0,:,:] = Sigma0
+    
+    # Initialize population
+    mutab = np.zeros((N,T,n))
+    Sigmatab = np.zeros((N,T,n,n))
+    for j in range(N):
+        mutab[j,0,:] = mu0
+        Sigmatab[j,0,:,:] = Sigma0 
+    Wtab = np.ones(N)/N
+    
+    for t in range(1,T):
+
+        #--- Update the particles with the UKF ---#
+        for j in range(N):
+            #--- Predict ---#
+            # Compute sigma-points and weights
+            xtab, wtab = UT(mutab[j,t-1,:], Sigmatab[j,t-1,:,:])
+            for i in range(0,len(xtab)):
+                xtab[i] = propagator(xtab[i], dt, fDynamics) + w(n,Q)
+            # Predict mean and covariance
+            mutab[j,t,:], Sigmatab[j,t,:,:] = UTi(xtab, wtab)
+            Sigmatab[j,t,:,:] += Q
+
+            #--- Update ---#
+            # Recompute sigma-points with predictions
+            xtab, wtab = UT(mutab[j,t,:], Sigmatab[j,t,:,:])
+            # Sigma-point measurements
+            ytab = np.zeros((2*n+1, m))
+            for i in range(0,len(xtab)):
+                ytab[i] = fMeas(C[t,:,:], xtab[i])
+            # Expected measurement
+            yh = np.sum(ytab*wtab,axis=0)
+            # Empirical covariances
+            Sigma_y = np.dot((ytab-yh).T, wtab*(ytab-yh))
+            Sigma_y += R
+            Sigma_xy = np.dot((xtab-mu[t,:]).T, wtab*(ytab-yh))
+            # Update
+            K = np.dot(Sigma_xy, np.linalg.inv(Sigma_y))
+            mutab[j,t,:] += np.dot(K, (Y[t,:] - yh))
+            Sigmatab[j,t,:,:] -= np.dot(K, Sigma_xy.T)
+            
+        # Measurements of the particles states
+        Ytab = np.zeros((N, m))
+        for j in range(N):
+            Ytab[j] = fMeas(C[t,:,:], mutab[j,t,:])
+        # Update weights
+        for j in range(N):
+            Wtab[j] = lognorm_pdf((Y[t,:]-Ytab[j]), np.zeros(m), R)
+        Wtab = exp_normalize(Wtab)
+        # Resample
+        mutab_, Sigmatab_, Wtab = low_variance_resampling_UPF(mutab[:,t,:],Sigmatab[:,t,:,:],Wtab,N)
+        mutab[:,t,:] = mutab_
+        Sigmatab[:,t,:,:] = Sigmatab_
+
+        # Update
+        mu[t,:] = np.dot(mutab_.T,Wtab)
+        Sigma[t,:,:] = np.dot(Sigmatab_.T,Wtab)
+        
     return mu
