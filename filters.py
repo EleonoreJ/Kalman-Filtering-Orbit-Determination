@@ -2,23 +2,7 @@ import numpy as np
 from scipy.linalg import sqrtm
 import scipy.sparse as sp
 import scipy.sparse.linalg as spln
-
-
-def g(C_t, X_t):
-    return np.dot(C_t, X_t)
-
-def w(dim, Cov):
-    return np.random.multivariate_normal(np.zeros(dim), Cov)
-
-def generateMeasurements(C, X, R, noise=True):
-    T, m = X.shape[0], C.shape[1]
-    Y = np.zeros((T, m))
-    for t in range(T):
-        Y[t,:] = g(C[t,:,:], X[t,:])
-        if noise:
-            Y[t,:] += w(m, R)
-    
-    return Y
+from measurement import w
 
 
 def EKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, JDynamics, propagator, dt):
