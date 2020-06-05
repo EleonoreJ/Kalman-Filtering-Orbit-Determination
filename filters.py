@@ -297,9 +297,9 @@ def UPF(X, Y, mu0, Sigma0, Q, R, N, fDynamics, propagator, dt, fMeas=g, X_gps=No
                 Ytab[j] = fMeas(np.eye(m), mutab[j,t,:])
         else:
             m = 16
-            ytab = np.zeros((N, m))
+            Ytab = np.zeros((N, m))
             for j in range(N):
-                ytab[j] = fMeas(X_gps[:,:,t], mutab[j,t,:])
+                Ytab[j] = fMeas(X_gps[:,:,t], mutab[j,t,:])
         
         # Update weights
         for j in range(N):
