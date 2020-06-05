@@ -1,6 +1,5 @@
 import numpy as np
 from ostk.physics.environment.objects.celestial_bodies import Earth
-from ostk.physics import Environment
 
 
 def keplerianDynamics(X):
@@ -87,7 +86,6 @@ def j2Jacobian(X):
     rk = float(X[2])
     
     J = keplerianJacobian(X)
-   
     a = -1/2*mu*J2*Re**2
     J[3,0] += a*((3*r**-5 - 15*rk**2*r**-7) + (-15*r**-7 + 105*rk**2*r**-9)*ri**2)
     J[3,1] += a*(-15*r**-7 + 105*rk**2*r**-9)*ri*rj
@@ -197,69 +195,130 @@ def dragJacobian(X, Cd=2.3, A=20, m=1500):
     return J
 
 
-# def moonDynamics(X, X_moon=None):
-#     """
-#     Computes the acceleration due to the Earth gravitational force,
-#     Earth oblateness (J2), atmospheric drag and Moon gravitational force.
-#     @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
-#     @param: X_moon The moon state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
-#     """
-#     moon = Environment.default().access_celestial_object_with_name("Moon")
-#     mu = moon.get_gravitational_parameter()
-#     mu = float(mu.in_unit(mu.get_unit()))
+def moonDynamics(X, X_moon=None):
+    """
+    Computes the acceleration due to the Earth gravitational force,
+    Earth oblateness (J2), atmospheric drag and Moon gravitational force.
+    @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    @param: X_moon The moon state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    """
+    # moon = Environment.default().access_celestial_object_with_name("Moon")
+    # mu = moon.get_gravitational_parameter()
+    # mu = float(mu.in_unit(mu.get_unit()))
+    mu = 4902800000000.0
     
-#     if not X_moon:
-#         # by default, assume some fixed position and velocity of the Moon for the time of simulation
-#         X_moon = np.array([3.901856345891698e+08, -7.652260694831179e+08, -7.072466144052049e+08,
-#                           0.248727753078019e+03, 0.872460710727378e+03, 0.340065120865137e+03])
-#     d = X_moon[0:3] - X[0:3]
-#     rm = float(np.linalg.norm(X_moon[0:3]))
+    if not X_moon:
+        # by default, assume some fixed position and velocity of the Moon for the time of simulation
+        X_moon = np.array([3.901856345891698e+08, -7.652260694831179e+08, -7.072466144052049e+08,
+                          0.248727753078019e+03, 0.872460710727378e+03, 0.340065120865137e+03])
+    d = X_moon[0:3] - X[0:3]
+    rm = float(np.linalg.norm(X_moon[0:3]))
     
-#     fMoon = mu*(d/np.linalg.norm(d)**3 - X_moon[0:3]/rm**3)
-#     return dragDynamics(X) + fMoon
+    fMoon = mu*(d/np.linalg.norm(d)**3 - X_moon[0:3]/rm**3)
+    return dragDynamics(X) + fMoon
    
             
-# def moonJacobian(X, X_moon=None):
-#     """
-#     Computes the acceleration due to the Earth gravitational force,
-#     Earth oblateness (J2), atmospheric drag and Moon gravitational force.
-#     @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
-#     @param: X_moon The moon state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
-#     """
-#     moon = Environment.default().access_celestial_object_with_name("Moon")
-#     mu = moon.get_gravitational_parameter()
-#     mu = float(mu.in_unit(mu.get_unit()))
+def moonJacobian(X, X_moon=None):
+    """
+    Computes the Jacobian for Keplerian + J2 + atmospheric drag + Moon dynamics.
+    @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    @param: X_moon The moon state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    """
+    # moon = Environment.default().access_celestial_object_with_name("Moon")
+    # mu = moon.get_gravitational_parameter()
+    # mu = float(mu.in_unit(mu.get_unit()))
+    mu = 4902800000000.0
     
-#     if not X_moon:
-#         # by default, assume some fixed position and velocity of the Moon for the time of simulation
-#         X_moon = np.array([3.901856345891698e+08, -7.652260694831179e+08, -7.072466144052049e+08,
-#                           0.248727753078019e+03, 0.872460710727378e+03, 0.340065120865137e+03])
-#     d = X_moon[0:3] - X[0:3]  
-#     r = float(np.linalg.norm(X[0:3]))
-#     ri,rj,rk,vi,vj,vk = X
-#     rm = float(np.linalg.norm(X_moon[0:3]))
-#     rim,rjm,rkm = X_moon
+    if not X_moon:
+        # by default, assume some fixed position and velocity of the Moon for the time of simulation
+        X_moon = np.array([3.901856345891698e+08, -7.652260694831179e+08, -7.072466144052049e+08,
+                          0.248727753078019e+03, 0.872460710727378e+03, 0.340065120865137e+03])
+    d = X_moon[0:3] - X[0:3]  
+    r = float(np.linalg.norm(X[0:3]))
+    ri,rj,rk,vi,vj,vk = X
+    rm = float(np.linalg.norm(X_moon[0:3]))
+    rim,rjm,rkm = X_moon[0:3]
             
-#     J = dragJacobian(X)
-#     J[3,0] += 3*(rim-ri)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
-#     J[3,1] += 3*(rim-ri)*(rjm-rj)/np.linalg.norm(d)**5
-#     J[3,2] += 3*(rim-ri)*(rkm-rk)/np.linalg.norm(d)**5
+    J = dragJacobian(X)
+    J[3,0] += 3*(rim-ri)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
+    J[3,1] += 3*(rim-ri)*(rjm-rj)/np.linalg.norm(d)**5
+    J[3,2] += 3*(rim-ri)*(rkm-rk)/np.linalg.norm(d)**5
                 
-#     J[4,0] += 3*(rim-ri)*(rjm-rj)/np.linalg.norm(d)**5
-#     J[4,1] += 3*(rjm-rj)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
-#     J[4,2] += 3*(rjm-rj)*(rkm-rk)/np.linalg.norm(d)**5
+    J[4,0] += 3*(rim-ri)*(rjm-rj)/np.linalg.norm(d)**5
+    J[4,1] += 3*(rjm-rj)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
+    J[4,2] += 3*(rjm-rj)*(rkm-rk)/np.linalg.norm(d)**5
                 
-#     J[5,0] += 3*(rim-ri)*(rkm-rk)/np.linalg.norm(d)**5
-#     J[5,1] += 3*(rjm-rj)*(rkm-rk)/np.linalg.norm(d)**5
-#     J[5,2] += 3*(rkm-rk)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
+    J[5,0] += 3*(rim-ri)*(rkm-rk)/np.linalg.norm(d)**5
+    J[5,1] += 3*(rjm-rj)*(rkm-rk)/np.linalg.norm(d)**5
+    J[5,2] += 3*(rkm-rk)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
             
-#     return J
+    return J
+
+
+def sunDynamics(X, X_sun=None):
+    """
+    Computes the acceleration due to the Earth gravitational force,
+    Earth oblateness (J2), atmospheric drag, Moon and Sun gravitational forces.
+    @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    @param: X_sun  The sun state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    """
+    # sun = Environment.default().access_celestial_object_with_name("Sun")
+    # mu = sun.get_gravitational_parameter()
+    # mu = float(mu.in_unit(mu.get_unit()))
+    mu = 1.32712440018e+20
+    
+    if not X_sun:
+        # by default, assume some fixed position and velocity of the Sun for the time of simulation
+        X_sun = np.array([2.488497222696136e+10, -1.330174881730062e+11, -5.766341113228035e+10,
+                          29.848920446520168e+03, 4.736679395943737e+03, 2.052798795667299e+03])
+    d = X_sun[0:3] - X[0:3]
+    rm = float(np.linalg.norm(X_sun[0:3]))
+    
+    fSun = mu*(d/np.linalg.norm(d)**3 - X_sun[0:3]/rm**3)
+    return moonDynamics(X) + fSun
+   
+            
+def sunJacobian(X, X_sun=None):
+    """
+    Computes the Jacobian for Keplerian + J2 + atmospheric drag + Moon + Sun dynamics.
+    @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    @param: X_moon The moon state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
+    """
+    # sun = Environment.default().access_celestial_object_with_name("Sun")
+    # mu = sun.get_gravitational_parameter()
+    # mu = float(mu.in_unit(mu.get_unit()))
+    mu = 1.32712440018e+20
+    
+    if not X_sun:
+        # by default, assume some fixed position and velocity of the Sun for the time of simulation
+        X_sun = np.array([2.488497222696136e+10, -1.330174881730062e+11, -5.766341113228035e+10,
+                          29.848920446520168e+03, 4.736679395943737e+03, 2.052798795667299e+03])
+    d = X_sun[0:3] - X[0:3]  
+    r = float(np.linalg.norm(X[0:3]))
+    ri,rj,rk,vi,vj,vk = X
+    rm = float(np.linalg.norm(X_sun[0:3]))
+    rim,rjm,rkm = X_sun[0:3]
+            
+    J = moonJacobian(X)
+    J[3,0] += 3*(rim-ri)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
+    J[3,1] += 3*(rim-ri)*(rjm-rj)/np.linalg.norm(d)**5
+    J[3,2] += 3*(rim-ri)*(rkm-rk)/np.linalg.norm(d)**5
+                
+    J[4,0] += 3*(rim-ri)*(rjm-rj)/np.linalg.norm(d)**5
+    J[4,1] += 3*(rjm-rj)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
+    J[4,2] += 3*(rjm-rj)*(rkm-rk)/np.linalg.norm(d)**5
+                
+    J[5,0] += 3*(rim-ri)*(rkm-rk)/np.linalg.norm(d)**5
+    J[5,1] += 3*(rjm-rj)*(rkm-rk)/np.linalg.norm(d)**5
+    J[5,2] += 3*(rkm-rk)**2/np.linalg.norm(d)**5 - 1/np.linalg.norm(d)**2
+            
+    return J
             
             
 def srpDynamics(X, X_sun=None, Csr=0.7, psr=4.57e-6, A=20, m=1500):
     """
     Computes the acceleration due to the Earth gravitational force, Earth oblateness (J2), 
-    atmospheric drag, Moon gravitational force and solar radiation pressure.
+    atmospheric drag, Moon and Sun gravitational forces and solar radiation pressure.
     @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
     @param: X_sun  The sun state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
     @param: Csr    The drag coefficient (default 0.7).
@@ -276,13 +335,12 @@ def srpDynamics(X, X_sun=None, Csr=0.7, psr=4.57e-6, A=20, m=1500):
     rs = float(np.linalg.norm(X_sun[0:3]))
     
     fSun = -psr*Csr*A/m/np.linalg.norm(d) * d
-    return dragDynamics(X) + fSun
+    return sunDynamics(X) + fSun
                 
 
 def srpJacobian(X, X_sun=None, Csr=0.7, psr=4.57e-6, A=20, m=1500):
     """
-    Computes the acceleration due to the Earth gravitational force, Earth oblateness (J2), 
-    atmospheric drag, Moon gravitational force and solar radiation pressure.
+    Computes the Jacobian for Keplerian + J2 + atmospheric drag + Moon + Sun + SRP dynamics.
     @param: X      The spacecraft state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
     @param: X_sun  The sun state [ri rj rk vi vj vk] expressed in ECI frame ([m], [m/s]).
     @param: Csr    The drag coefficient (default 0.7).
@@ -300,7 +358,7 @@ def srpJacobian(X, X_sun=None, Csr=0.7, psr=4.57e-6, A=20, m=1500):
     rs = float(np.linalg.norm(X_sun[0:3]))
     ris,rjs,rks = X_sun[0:3]
                 
-    J = dragJacobian(X)
+    J = sunJacobian(X)
     a = -psr*Csr*A/m
     J[3,0] += a*((ris-ri)**2/np.linalg.norm(d)**3 - 1/np.linalg.norm(d))
     J[3,1] += a*((ris-ri)*(rjs-rj)/np.linalg.norm(d)**3)
@@ -315,4 +373,3 @@ def srpJacobian(X, X_sun=None, Csr=0.7, psr=4.57e-6, A=20, m=1500):
     J[5,2] += a*((rks-rk)**2/np.linalg.norm(d)**3 - 1/np.linalg.norm(d))
             
     return J
-       
