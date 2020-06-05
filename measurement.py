@@ -4,7 +4,6 @@ import numpy as np
 def w(dim, Cov):
     return np.random.multivariate_normal(np.zeros(dim), Cov)
 
-
 ## Naive measurement model
 
 def g(C_t, X_t):
@@ -17,9 +16,7 @@ def generateMeasurementsNaive(C, X, R, noise=True):
         Y[t,:] = g(C[t,:,:], X[t,:])
         if noise:
             Y[t,:] += w(m, R)
-    
     return Y
-
 
 ## GPS measurement model
 
@@ -97,3 +94,4 @@ def measJacobian(X_gps_t, X_t):
     Jdoppler = dopplerMeasJacobian(X_gps_t, X_t)
     J = np.concatenate((Jr, Jdoppler), axis = 0)
     return J
+

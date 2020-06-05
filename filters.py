@@ -2,15 +2,14 @@ import numpy as np
 from scipy.linalg import sqrtm
 import scipy.sparse as sp
 import scipy.sparse.linalg as spln
-from measurement import w
+from measurement import w, g
 
 
-def EKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, JDynamics, propagator, dt):
+def EKF(X, Y, mu0, Sigma0, Q, R, fDynamics, JDynamics, propagator, dt, fMeas=g, JMeas=None, X_gps=None):
     """
     Extended Kalman Filter.
     """
     T, n = X.shape
-    m = C.shape[1]
 
     mu = np.zeros((T, n))
     Sigma = np.zeros((T, n, n))
@@ -29,9 +28,15 @@ def EKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, JDynamics, propagator, dt)
         A[t,:,:] = JDynamics(mu[t,:])
 
         #--- Update ---#
-        K = np.dot(Sigma[t,:,:], np.dot(C[t,:,].T, np.linalg.inv(np.dot(C[t,:,:],Sigma[t,:,:]).dot(C[t,:,:].T) + R)))
-        mu[t,:] += np.dot(K, Y[t,:] - fMeas(C[t,:,:], mu[t,:]))
-        Sigma[t,:,:] -= np.dot(K, np.dot(C[t,:,:], Sigma[t,:,:]))
+        if X_gps is None or JMeas is None:
+            C = np.eye(6)
+            y = fMeas(C, mu[t,:])
+        else:
+            C = JMeas(X_gps[:,:,t], mu[t,:])
+            y = fMeas(X_gps[:,:,t], mu[t,:])
+        K = np.dot(Sigma[t,:,:], np.dot(C.T, np.linalg.inv(np.dot(C,Sigma[t,:,:]).dot(C.T) + R)))
+        mu[t,:] += np.dot(K, Y[t,:] - y)
+        Sigma[t,:,:] -= np.dot(K, np.dot(C, Sigma[t,:,:]))
         
     return mu, Sigma
 
@@ -61,12 +66,11 @@ def UTi(xtab, wtab, lda=2):
     Sigma = np.dot(xh.T, xh*wtab)
     return mu, Sigma
 
-def UKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, propagator, dt):
+def UKF(X, Y, mu0, Sigma0, Q, R, fDynamics, propagator, dt, fMeas=g, X_gps=None):
     """
     Unscented Kalman Filter.
     """
     T, n = X.shape
-    m = C.shape[1]
 
     mu = np.zeros((T, n))
     Sigma = np.zeros((T, n, n))
@@ -80,6 +84,7 @@ def UKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, propagator, dt):
         xtab, wtab = UT(mu[t-1,:], Sigma[t-1,:,:])
         for i in range(0,len(xtab)):
             xtab[i] = propagator(xtab[i], dt, fDynamics) + w(n,Q)
+        
         # Predict mean and covariance
         mu[t,:], Sigma[t,:,:] = UTi(xtab, wtab)
         Sigma[t,:,:] += Q
@@ -87,16 +92,25 @@ def UKF(X, Y, C, mu0, Sigma0, Q, R, fDynamics, fMeas, propagator, dt):
         #--- Update ---#
         # Recompute sigma-points with predictions
         xtab, wtab = UT(mu[t,:], Sigma[t,:,:])
+        
         # Sigma-point measurements
-        ytab = np.zeros((2*n+1, m))
-        for i in range(0,len(xtab)):
-            ytab[i] = fMeas(C[t,:,:], xtab[i])
+        if X_gps is None:
+            ytab = np.zeros((2*n+1, 6))
+            for i in range(0,len(xtab)):
+                ytab[i] = fMeas(np.eye(6), xtab[i])
+        else:
+            ytab = np.zeros((2*n+1, 16))
+            for i in range(0,len(xtab)):
+                ytab[i] = fMeas(X_gps[:,:,t], xtab[i])
+        
         # Expected measurement
         yh = np.sum(ytab*wtab,axis=0)
+        
         # Empirical covariances
         Sigma_y = np.dot((ytab-yh).T, wtab*(ytab-yh))
         Sigma_y += R
         Sigma_xy = np.dot((xtab-mu[t,:]).T, wtab*(ytab-yh))
+        
         # Update
         K = np.dot(Sigma_xy, np.linalg.inv(Sigma_y))
         mu[t,:] += np.dot(K, (Y[t,:] - yh))
@@ -152,12 +166,11 @@ def exp_normalize(x):
     y = np.exp(x - b)
     return y / y.sum()
 
-def PF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
+def PF(X, Y, mu0, Sigma0, Q, R, N, fDynamics, propagator, dt, fMeas=g, X_gps=None):
     """
     Particle Filter.
     """
     T, n = X.shape
-    m = C.shape[1]
 
     mu = np.zeros((T, n))
     mu[0,:] = mu0
@@ -169,15 +182,24 @@ def PF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
         #--- Predict ---#
         for j in range(0,len(xtab)):
             xtab[j] = propagator(xtab[j], dt, fDynamics) + w(n,Q)
-        # Measurements of the particles states
-        ytab = np.zeros((N, m))
-        for j in range(0,len(xtab)):
-            ytab[j] = fMeas(C[t,:,:], xtab[j])
+        
+        if X_gps is None:
+            m = 6
+            ytab = np.zeros((N, m))
+            for j in range(0,len(xtab)):
+                ytab[j] = fMeas(np.eye(m), xtab[j])
+        else:
+            m = 16
+            ytab = np.zeros((N, m))
+            for j in range(0,len(xtab)):
+                ytab[j] = fMeas(X_gps[:,:,t], xtab[j])
+        
         # Update weights
         wtab=np.zeros(N)
         for j in range(N):
             wtab[j] = lognorm_pdf((Y[t,:]-ytab[j]), np.zeros(m), R)
         wtab = exp_normalize(wtab)
+        
         # Resample
         xtab, wtab = low_variance_resampling(xtab,wtab,N)
 
@@ -207,12 +229,11 @@ def low_variance_resampling_UPF(xtab,Sigmatab,wtab,N):
         wlist.append(wtab[j])
     return np.array(xlist), np.array(Sigmalist), np.array(wlist)/sum(wlist)
 
-def UPF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
+def UPF(X, Y, mu0, Sigma0, Q, R, N, fDynamics, propagator, dt, fMeas=g, X_gps=None):
     """
     Unscented Particle Filter.
     """
     T, n = X.shape
-    m = C.shape[1]
     
     mu = np.zeros((T, n))
     Sigma = np.zeros((T, n, n))
@@ -236,6 +257,7 @@ def UPF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
             xtab, wtab = UT(mutab[j,t-1,:], Sigmatab[j,t-1,:,:])
             for i in range(0,len(xtab)):
                 xtab[i] = propagator(xtab[i], dt, fDynamics) + w(n,Q)
+            
             # Predict mean and covariance
             mutab[j,t,:], Sigmatab[j,t,:,:] = UTi(xtab, wtab)
             Sigmatab[j,t,:,:] += Q
@@ -243,29 +265,47 @@ def UPF(X, Y, C, mu0, Sigma0, Q, R, N, fDynamics, fMeas, propagator, dt):
             #--- Update ---#
             # Recompute sigma-points with predictions
             xtab, wtab = UT(mutab[j,t,:], Sigmatab[j,t,:,:])
+            
             # Sigma-point measurements
-            ytab = np.zeros((2*n+1, m))
-            for i in range(0,len(xtab)):
-                ytab[i] = fMeas(C[t,:,:], xtab[i])
+            if X_gps is None:
+                ytab = np.zeros((2*n+1, 6))
+                for i in range(0,len(xtab)):
+                    ytab[i] = fMeas(np.eye(6), xtab[i])
+            else:
+                ytab = np.zeros((2*n+1, 16))
+                for i in range(0,len(xtab)):
+                    ytab[i] = fMeas(X_gps[:,:,t], xtab[i])
+            
             # Expected measurement
             yh = np.sum(ytab*wtab,axis=0)
+            
             # Empirical covariances
             Sigma_y = np.dot((ytab-yh).T, wtab*(ytab-yh))
             Sigma_y += R
             Sigma_xy = np.dot((xtab-mu[t,:]).T, wtab*(ytab-yh))
+            
             # Update
             K = np.dot(Sigma_xy, np.linalg.inv(Sigma_y))
             mutab[j,t,:] += np.dot(K, (Y[t,:] - yh))
             Sigmatab[j,t,:,:] -= np.dot(K, Sigma_xy.T)
             
         # Measurements of the particles states
-        Ytab = np.zeros((N, m))
-        for j in range(N):
-            Ytab[j] = fMeas(C[t,:,:], mutab[j,t,:])
+        if X_gps is None:
+            m = 6
+            Ytab = np.zeros((N, m))
+            for j in range(N):
+                Ytab[j] = fMeas(np.eye(m), mutab[j,t,:])
+        else:
+            m = 16
+            ytab = np.zeros((N, m))
+            for j in range(N):
+                ytab[j] = fMeas(X_gps[:,:,t], mutab[j,t,:])
+        
         # Update weights
         for j in range(N):
             Wtab[j] = lognorm_pdf((Y[t,:]-Ytab[j]), np.zeros(m), R)
         Wtab = exp_normalize(Wtab)
+        
         # Resample
         mutab_, Sigmatab_, Wtab = low_variance_resampling_UPF(mutab[:,t,:],Sigmatab[:,t,:,:],Wtab,N)
         mutab[:,t,:] = mutab_
